@@ -1,14 +1,14 @@
 
-#include "cpu.h"
-#include "timer.h"
-#include "sched.h"
-#include "loader.h"
-#include "mm.h"
+#include "../include/cpu.h"
+#include "../include/timer.h"
+#include "../include/sched.h"
+#include "../include/loader.h"
+#include "../include/mm.h"
 
-#include <pthread.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <../include/pthread.h>
+#include <../include/stdio.h>
+#include <../include/string.h>
+#include <../include/stdlib.h>
 
 static int time_slot;
 static int num_cpus;
