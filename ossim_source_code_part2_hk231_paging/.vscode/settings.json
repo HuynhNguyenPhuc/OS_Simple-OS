@@ -1,0 +1,8 @@
+{
+  "C_Cpp.dimInactiveRegions": false,
+  "C_Cpp.errorSquiggles": "disabled",
+  "files.associations": {
+    "queue.h": "c",
+    "common.h": "c"
+  }
+}
