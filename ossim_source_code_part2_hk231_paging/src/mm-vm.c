@@ -14,18 +14,18 @@
  *@rg_elmt: new region
  *
  */
-int enlist_vm_freerg_list(struct mm_struct *mm, struct vm_rg_struct rg_elmt)
+int enlist_vm_freerg_list(struct mm_struct *mm, struct vm_rg_struct *rg_elmt)
 {
   struct vm_rg_struct *rg_node = mm->mmap->vm_freerg_list;
 
-  if (rg_elmt.rg_start >= rg_elmt.rg_end)
+  if (rg_elmt->rg_start >= rg_elmt->rg_end)
     return -1;
 
   if (rg_node != NULL)
-    rg_elmt.rg_next = rg_node;
+    rg_elmt->rg_next = rg_node;
 
   /* Enlist the new region */
-  mm->mmap->vm_freerg_list = &rg_elmt;
+  mm->mmap->vm_freerg_list = rg_elmt;
 
   return 0;
 }
@@ -112,7 +112,7 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   caller->mm->symrgtbl[rgid].rg_end = old_sbrk + size;
 
   *alloc_addr = old_sbrk;
-printf("__alloc OK\n");
+
   return 0;
 }
 
@@ -126,14 +126,14 @@ printf("__alloc OK\n");
 int __free(struct pcb_t *caller, int vmaid, int rgid)
 {
 // printf("__free caalled\n");
-  struct vm_rg_struct rgnode;
+  struct vm_rg_struct *rgnode = malloc(sizeof(struct vm_rg_struct));
 
   if(rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ)
     return -1;
 
   /* TODO: Manage the collect freed region to freerg_list */
-  rgnode.rg_start = caller->mm->symrgtbl[rgid].rg_start;
-  rgnode.rg_end = caller->mm->symrgtbl[rgid].rg_end;
+  rgnode->rg_start = caller->mm->symrgtbl[rgid].rg_start;
+  rgnode->rg_end = caller->mm->symrgtbl[rgid].rg_end;
 
   /*enlist the obsoleted memory region */
   enlist_vm_freerg_list(caller->mm, rgnode);
@@ -180,15 +180,23 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 {
   // printf("pg_getpage called\n");
   uint32_t pte = mm->pgd[pgn];
-  if (pte & PAGING_PTE_DIRTY_MASK) // A frame has not been assigned for this page
+  if (!PAGING_PAGE_PRESENT(pte)) // A frame has not been assigned for this page
   {
     int new_fpn;
-    if (!MEMPHY_get_freefp(caller->mram, &new_fpn)) { // RAM has free frame
-      pte_set_fpn(&mm->pgd[pgn], new_fpn);
+    if (MEMPHY_get_freefp(caller->mram, &new_fpn) < 0) { // RAM has no free frame
+      int vicpgn;
+      find_victim_page(caller->mm, &vicpgn);
+      uint32_t vic_pte = mm->pgd[vicpgn];
+      int vicfpn = PAGING_FPN(vic_pte);
+      int swpfpn;
+      MEMPHY_get_freefp(caller->active_mswp, &swpfpn);
+      __swap_cp_page(caller->mram, vicfpn, caller->active_mswp, swpfpn);
+      pte_set_swap(&mm->pgd[vicpgn], 0, swpfpn);
+      new_fpn = vicfpn;
     }
-    // RAM has no free frame
+    pte_set_fpn(&mm->pgd[pgn], new_fpn);
   }
-  else if (!PAGING_PAGE_PRESENT(pte))
+  else if (pte & PAGING_PTE_SWAPPED_MASK)
   { /* Page is not online, make it actively living */
     int vicpgn, swpfpn;
     int tgtfpn = PAGING_SWP(pte);
@@ -550,9 +558,8 @@ int get_free_vmrg_area(struct pcb_t *caller, int vmaid, int size, struct vm_rg_s
       rgit = rgit->rg_next;	// Traverse next rg
     }
   }
-
- if(newrg->rg_start == -1) // new region not found
-   return -1;
+  if(newrg->rg_start == -1) // new region not found
+    return -1;
 
  return 0;
 }

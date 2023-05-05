@@ -51,9 +51,8 @@ int init_pte(uint32_t *pte,
  */
 int pte_set_swap(uint32_t *pte, int swptyp, int swpoff)
 {
-  CLRBIT(*pte, PAGING_PTE_PRESENT_MASK);
+  SETBIT(*pte, PAGING_PTE_PRESENT_MASK);
   SETBIT(*pte, PAGING_PTE_SWAPPED_MASK);
-  CLRBIT(*pte, PAGING_PTE_DIRTY_MASK);
 
   SETVAL(*pte, swptyp, PAGING_PTE_SWPTYP_MASK, PAGING_PTE_SWPTYP_LOBIT);
   SETVAL(*pte, swpoff, PAGING_PTE_SWPOFF_MASK, PAGING_PTE_SWPOFF_LOBIT);
@@ -70,7 +69,6 @@ int pte_set_fpn(uint32_t *pte, int fpn)
 {
   SETBIT(*pte, PAGING_PTE_PRESENT_MASK);
   CLRBIT(*pte, PAGING_PTE_SWAPPED_MASK);
-  CLRBIT(*pte, PAGING_PTE_DIRTY_MASK);
 
   SETVAL(*pte, fpn, PAGING_PTE_FPN_MASK, PAGING_PTE_FPN_LOBIT); 
 
@@ -249,7 +247,7 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
 
   mm->pgd = malloc(PAGING_MAX_PGN*sizeof(uint32_t));
   for (int i = 0; i < PAGING_MAX_PGN; i++) {
-    SETBIT(mm->pgd[i], PAGING_PTE_DIRTY_MASK);
+    mm->pgd[i] = 0;
   }
 
   /* By default the owner comes with at least one vma */
