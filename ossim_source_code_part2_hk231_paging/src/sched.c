@@ -12,9 +12,9 @@ static pthread_mutex_t queue_lock;
 //
 #ifdef MLQ_SCHED
 // Mycode
-static int current_prio = 0;
-static int current_slot = 0;
-static int count_queue = 0;
+int current_prio = 0;
+int current_slot = 0;
+int count_queue = 0;
 static struct queue_t mlq_ready_queue[MAX_PRIO];
 #endif
 
@@ -55,53 +55,57 @@ struct pcb_t *get_mlq_proc(void)
 	/*TODO: get a process from PRIORITY [ready_queue].
 	 * Remember to use lock to protect the queue.
 	 * */
-
+	pthread_mutex_lock(&queue_lock);
 	while (1)
 	{
-		pthread_mutex_lock(&queue_lock);
+		// All queues are empty ->Exit
+		if (count_queue > MAX_PRIO)
+		{
+			count_queue = 0;
+			pthread_mutex_unlock(&queue_lock);
+			return NULL;
+		}
+		// Not found any process in current level -> Find next levels to find
+		if (empty(&mlq_ready_queue[current_prio]))
+		{
+			current_prio = (current_prio + 1) % MAX_PRIO;
+			current_slot = 0;
+			count_queue++;
+			// printf("%d\n", count_queue);
+		}
 		proc = dequeue(&mlq_ready_queue[current_prio]);
-		pthread_mutex_unlock(&queue_lock);
+
 		// Found a process in current level
 		if (proc != NULL)
 		{
 			count_queue = 0;
 			break;
 		}
-
-		else // Not found any process in current level -> Find next levels to find
-		{
-			current_prio = (current_prio + 1) % MAX_PRIO;
-			current_slot = 0;
-			count_queue++;
-			// printf("%d", count_queue);
-		}
-		if (count_queue > MAX_PRIO)
-		{
-			count_queue = 0;
-			return NULL;
-		}
 	}
-
 	current_slot++;
 	if (current_slot >= MAX_PRIO - current_prio)
 	{
 		current_prio = (current_prio + 1) % MAX_PRIO;
 		current_slot = 0;
 	}
-
+	pthread_mutex_unlock(&queue_lock);
 	return proc;
 }
 
 void put_mlq_proc(struct pcb_t *proc)
 {
+	// printf("Ready to go to endquue\n");
 	pthread_mutex_lock(&queue_lock);
 	enqueue(&mlq_ready_queue[proc->prio], proc);
 	pthread_mutex_unlock(&queue_lock);
+	// printf("OUT  endquue\n");
 }
 
 void add_mlq_proc(struct pcb_t *proc)
 {
+
 	pthread_mutex_lock(&queue_lock);
+	// printf("Ready to go to endquue add proc\n");
 	enqueue(&mlq_ready_queue[proc->prio], proc);
 	pthread_mutex_unlock(&queue_lock);
 }
@@ -118,6 +122,7 @@ void put_proc(struct pcb_t *proc)
 
 void add_proc(struct pcb_t *proc)
 {
+	// printf("Go to mql add proc\n");
 	return add_mlq_proc(proc);
 }
 #else
@@ -130,12 +135,13 @@ struct pcb_t *get_proc(void)
 	pthread_mutex_lock(&queue_lock);
 	proc = dequeue(&ready_queue);
 	pthread_mutex_unlock(&queue_lock);
+	return proc;
 }
 
 void put_proc(struct pcb_t *proc)
 {
 	pthread_mutex_lock(&queue_lock);
-	enqueue(&run_queue, proc);
+	enqueue(&ready_queue, proc);
 	pthread_mutex_unlock(&queue_lock);
 }
 

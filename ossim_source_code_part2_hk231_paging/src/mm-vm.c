@@ -133,7 +133,8 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
     return -1;
 
   /* TODO: Manage the collect freed region to freerg_list */
-  rgnode = *get_symrg_byid(caller->mm, rgid);
+  rgnode.rg_start = caller->mm->symrgtbl[rgid].rg_start;
+  rgnode.rg_end = caller->mm->symrgtbl[rgid].rg_end;
   /*enlist the obsoleted memory region */
   enlist_vm_freerg_list(caller->mm, rgnode);
 
@@ -178,32 +179,37 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
   if (!PAGING_PAGE_PRESENT(pte))
   { /* Page is not online, make it actively living */
     int vicpgn, swpfpn;
-    // int vicfpn;
-    // uint32_t vicpte;
+    int vicfpn;
+    uint32_t vicpte;
 
     int tgtfpn = PAGING_SWP(pte); // the target frame storing our variable
 
     /* TODO: Play with your paging theory here */
+    if (pte & PAGING_PTE_SWAPPED_MASK)
+    {
+      find_victim_page(caller->mm, &vicpgn);
+      vicpte = mm->pgd[vicpgn];
+      vicfpn = PAGING_FPN(vicpte);
+      /* Get free frame in MEMSWP */
+      MEMPHY_get_freefp(caller->active_mswp, &swpfpn);
+
+      /* Do swap frame from MEMRAM to MEMSWP and vice versa*/
+      /* Copy victim frame to swap */
+      __swap_cp_page(caller->mram, vicfpn, *caller->mswp, swpfpn);
+      /* Copy target frame from swap to mem */
+      __swap_cp_page(*caller->mswp, tgtfpn, caller->mram, vicfpn);
+
+      /* Update page table */
+      // pte_set_swap() &mm->pgd;
+      pte_set_swap(&pte, 0, swpfpn);
+
+      /* Update its online status of the target page */
+      // pte_set_fpn() & mm->pgd[pgn];
+      pte_set_fpn(&pte, tgtfpn);
+
+      enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
+    }
     /* Find victim page */
-    find_victim_page(caller->mm, &vicpgn);
-
-    /* Get free frame in MEMSWP */
-    MEMPHY_get_freefp(caller->active_mswp, &swpfpn);
-
-    /* Do swap frame from MEMRAM to MEMSWP and vice versa*/
-    /* Copy victim frame to swap */
-    //__swap_cp_page();
-    /* Copy target frame from swap to mem */
-    //__swap_cp_page();
-
-    /* Update page table */
-    // pte_set_swap() &mm->pgd;
-
-    /* Update its online status of the target page */
-    // pte_set_fpn() & mm->pgd[pgn];
-    pte_set_fpn(&pte, tgtfpn);
-
-    enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
   }
 
   *fpn = PAGING_FPN(pte);
@@ -406,12 +412,24 @@ struct vm_rg_struct *get_vm_area_node_at_brk(struct pcb_t *caller, int vmaid, in
  */
 int validate_overlap_vm_area(struct pcb_t *caller, int vmaid, int vmastart, int vmaend)
 {
-  struct vm_area_struct *vma = caller->mm->mmap;
-
   /* TODO validate the planned memory area is not overlapped */
-  if (vma->vm_start > vmaend || vma->vm_end < vmastart)
+  if (caller == NULL)
   {
     return -1;
+  }
+  struct vm_area_struct *vma = get_vma_by_num(caller->mm, vmaid);
+  if (vma == NULL)
+  {
+    return -1;
+  }
+  struct vm_area_struct *it = caller->mm->mmap;
+  while (it != NULL)
+  {
+    if ((it != vma) && (it->vm_start < vmaend || it->vm_end > vmastart))
+    {
+      return -1;
+    }
+    it = it->vm_next;
   }
   return 0;
 }
@@ -454,9 +472,25 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, int inc_sz)
 int find_victim_page(struct mm_struct *mm, int *retpgn)
 {
   struct pgn_t *pg = mm->fifo_pgn;
-
   /* TODO: Implement the theorical mechanism to find the victim page */
-
+  if (pg == NULL)
+    return -1;
+  if (pg->pg_next == NULL)
+  {
+    mm->fifo_pgn = NULL;
+  }
+  else
+  {
+    struct pgn_t *pre_pg = pg;
+    pg = pg->pg_next;
+    while (pg->pg_next != NULL)
+    {
+      pre_pg = pg;
+      pg = pg->pg_next;
+    }
+    pre_pg->pg_next = NULL;
+  }
+  *retpgn = pg->pgn;
   free(pg);
 
   return 0;
