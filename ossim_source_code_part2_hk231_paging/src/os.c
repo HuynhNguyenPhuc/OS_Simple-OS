@@ -14,6 +14,8 @@ static int time_slot;
 static int num_cpus;
 static int done = 0;
 
+pthread_mutex_t mutex;
+
 #ifdef MM_PAGING
 static int memramsz;
 static int memswpsz[PAGING_MAX_MMSWP];
@@ -234,6 +236,9 @@ int main(int argc, char * argv[]) {
 	for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
 	       init_memphy(&mswp[sit], memswpsz[sit], rdmflag);
 
+	// Initialize the mutex
+	pthread_mutex_init(&mutex, NULL);
+
 	/* In Paging mode, it needs passing the system mem to each PCB through loader*/
 	struct mmpaging_ld_args *mm_ld_args = malloc(sizeof(struct mmpaging_ld_args));
 
@@ -242,7 +247,6 @@ int main(int argc, char * argv[]) {
 	mm_ld_args->mswp = (struct memphy_struct**) &mswp;
 	mm_ld_args->active_mswp = (struct memphy_struct *) &mswp[0];
 #endif
-
 
 	/* Init scheduler */
 	init_scheduler();

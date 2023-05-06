@@ -8,6 +8,7 @@
 #include "mm.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 
 /*enlist_vm_freerg_list - add new rg to freerg_list
  *@mm: memory region
@@ -79,6 +80,8 @@ struct vm_rg_struct *get_symrg_byid(struct mm_struct *mm, int rgid)
  */
 int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
 {
+  pthread_mutex_lock(&mutex);
+
   /*Allocate at the toproof */
   struct vm_rg_struct rgnode;
 
@@ -89,6 +92,7 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
 
     *alloc_addr = rgnode.rg_start;
 
+    pthread_mutex_unlock(&mutex);
     return 0;
   }
 
@@ -112,7 +116,9 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   caller->mm->symrgtbl[rgid].rg_end = old_sbrk + size;
 
   *alloc_addr = old_sbrk;
-
+// printf("__alloc OK\n");
+  
+  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -125,11 +131,14 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
  */
 int __free(struct pcb_t *caller, int vmaid, int rgid)
 {
-// printf("__free caalled\n");
+  pthread_mutex_lock(&mutex);
+
   struct vm_rg_struct *rgnode = malloc(sizeof(struct vm_rg_struct));
 
-  if(rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ)
+  if(rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ) {
+    pthread_mutex_unlock(&mutex);
     return -1;
+  }
 
   /* TODO: Manage the collect freed region to freerg_list */
   rgnode->rg_start = caller->mm->symrgtbl[rgid].rg_start;
@@ -138,6 +147,7 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
   /*enlist the obsoleted memory region */
   enlist_vm_freerg_list(caller->mm, rgnode);
 
+  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -290,15 +300,20 @@ int pg_setval(struct mm_struct *mm, int addr, BYTE value, struct pcb_t *caller)
  */
 int __read(struct pcb_t *caller, int vmaid, int rgid, int offset, BYTE *data)
 {
+  pthread_mutex_lock(&mutex);
+
   struct vm_rg_struct *currg = get_symrg_byid(caller->mm, rgid);
 
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
 
-  if(currg == NULL || cur_vma == NULL) /* Invalid memory identify */
+  if(currg == NULL || cur_vma == NULL) { /* Invalid memory identify */
+    pthread_mutex_unlock(&mutex);
 	  return -1;
+  }
 
   pg_getval(caller->mm, currg->rg_start + offset, data, caller);
 
+  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -335,15 +350,20 @@ int pgread(
  */
 int __write(struct pcb_t *caller, int vmaid, int rgid, int offset, BYTE value)
 {
+  pthread_mutex_lock(&mutex);
+
   struct vm_rg_struct *currg = get_symrg_byid(caller->mm, rgid);
 
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
   
-  if(currg == NULL || cur_vma == NULL) /* Invalid memory identify */
+  if(currg == NULL || cur_vma == NULL) { /* Invalid memory identify */
+    pthread_mutex_unlock(&mutex);
 	  return -1;
+  }
 
   pg_setval(caller->mm, currg->rg_start + offset, value, caller);
 
+  pthread_mutex_unlock(&mutex);
   return 0;
 }
 
@@ -477,7 +497,7 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, int inc_sz)
  *@pgn: return page number
  *
  */
-int find_victim_page(struct mm_struct *mm, int *retpgn) 
+int find_victim_page(struct mm_struct *mm, int *retpgn)
 {
   struct pgn_t *pg = mm->fifo_pgn;
 
