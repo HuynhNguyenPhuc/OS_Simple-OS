@@ -103,7 +103,7 @@ int vmap_page_range(struct pcb_t *caller, // process call
   fpit = frames;
   for(pgit = 0; pgit < pgnum; pgit++) {
     // Mapping
-    pgn = PAGING_PGN(addr + pgit*PAGING_PAGESZ);
+    pgn = PAGING_PGN((addr + pgit*PAGING_PAGESZ));
     uint32_t *pte = &caller->mm->pgd[pgn];
     pte_set_fpn(pte, fpit->fpn);
     // List this page to list
