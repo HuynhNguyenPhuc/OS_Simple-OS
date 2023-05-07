@@ -14,6 +14,7 @@ static int time_slot;
 static int num_cpus;
 static int done = 0;
 
+pthread_mutex_t mutex;
 #ifdef MM_PAGING
 static int memramsz;
 static int memswpsz[PAGING_MAX_MMSWP];
@@ -153,7 +154,7 @@ static void *ld_routine(void *args)
 #endif // MLQ_SCHED
 
 		add_proc(proc);
-		printf("Out add proc\n");
+		// printf("Out add proc\n");
 		free(ld_processes.path[i]);
 		i++;
 		next_slot(timer_id);
@@ -253,6 +254,8 @@ int main(int argc, char *argv[])
 	struct timer_id_t *ld_event = attach_event();
 	start_timer();
 
+	// Init mutex lock
+	pthread_mutex_init(&mutex, NULL);
 #ifdef MM_PAGING
 	/* Init all MEMPHY include 1 MEMRAM and n of MEMSWP */
 	int rdmflag = 1; /* By default memphy is RANDOM ACCESS MEMORY */

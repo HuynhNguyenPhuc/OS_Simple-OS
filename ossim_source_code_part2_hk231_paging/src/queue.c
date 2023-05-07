@@ -29,7 +29,7 @@ struct pcb_t *dequeue(struct queue_t *q)
                 return NULL;
 #ifdef MLQ_SCHED
         struct pcb_t *temp = q->proc[0];
-        for (int i = 1; i < q->size; ++i)
+        for (int i = 0; i < q->size; ++i)
         {
                 q->proc[i] = q->proc[i + 1];
         }
