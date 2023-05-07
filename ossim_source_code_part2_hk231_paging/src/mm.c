@@ -101,17 +101,20 @@ int vmap_page_range(struct pcb_t *caller, // process call
    *      in page table caller->mm->pgd[]
    */
   fpit = frames;
-  for(pgit = 0; pgit < pgnum; pgit++) {
+  for (pgit = 0; pgit < pgnum; pgit++) {
     // Mapping
     pgn = PAGING_PGN((addr + pgit*PAGING_PAGESZ));
     uint32_t *pte = &caller->mm->pgd[pgn];
     pte_set_fpn(pte, fpit->fpn);
-    // List this page to list
-    enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
     // Delete
     struct framephy_struct *tmp = fpit;
     fpit = fpit->fp_next;
     free(tmp);
+  }
+  // List the pages to pgn list
+  for (pgit = pgnum-1; pgit >= 0; pgit--) {
+    pgn = PAGING_PGN((addr + pgit*PAGING_PAGESZ));
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
   }
   /* Tracking for later page replacement activities (if needed)
   * Enqueue new usage page */
@@ -130,21 +133,14 @@ int vmap_page_range(struct pcb_t *caller, // process call
 
 int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struct** frm_lst)
 {
+  // Mycode
   int pgit, fpn;
 
   for(pgit = 0; pgit < req_pgnum; pgit++)
   {
-    if(MEMPHY_get_freefp(caller->mram, &fpn) == 0)
-    {
-      // Mycode
-      struct framephy_struct *new_fp = malloc(sizeof(struct framephy_struct));
-      new_fp->fpn = fpn;
-      if (frm_lst != NULL) {
-        new_fp->fp_next = *frm_lst;
-      }
-      *frm_lst = new_fp;
-    } else { // ERROR CODE of obtaining somes but not enough frames
-      // Mycode
+    struct framephy_struct *new_fp = malloc(sizeof(struct framephy_struct));
+    if (MEMPHY_get_freefp(caller->mram, &fpn) != 0)
+    { // ERROR CODE of obtaining somes but not enough frames
       // Find a victim page
       int vicpgn;
       find_victim_page(caller->mm, &vicpgn);
@@ -153,17 +149,15 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
       // Find a free frame in mswp
       int swpfpn;
       MEMPHY_get_freefp(caller->active_mswp, &swpfpn);
-      // Copy content from ram to mswp
+      // Copy content from mram to mswp
       __swap_cp_page(caller->mram, vicfpn, caller->active_mswp, swpfpn);
       pte_set_swap(&caller->mm->pgd[vicpgn], 0, swpfpn);
       // Return this victim frame to the free frame list
-      struct framephy_struct *new_fp = malloc(sizeof(struct framephy_struct));
-      new_fp->fpn = vicfpn;
-      if (frm_lst != NULL) {
-        new_fp->fp_next = *frm_lst;
-      }
-      *frm_lst = new_fp;
+      fpn = vicfpn;
     }
+    new_fp->fpn = fpn;
+    new_fp->fp_next = *frm_lst;
+    *frm_lst = new_fp;
   }
 
   return 0;
@@ -251,7 +245,7 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
   }
 
   /* By default the owner comes with at least one vma */
-  vma->vm_id = 0; //  Something is fishy
+  vma->vm_id = 0;
   vma->vm_start = 0;
   vma->vm_end = vma->vm_start;
   vma->sbrk = vma->vm_start;
@@ -354,7 +348,7 @@ int print_list_pgn(struct pgn_t *ip)
        printf("va[%d]-\n",ip->pgn);
        ip = ip->pg_next;
    }
-   printf("n");
+   printf("\n");
    return 0;
 }
 

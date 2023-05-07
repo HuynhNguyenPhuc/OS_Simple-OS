@@ -53,8 +53,8 @@ struct pcb_t * get_mlq_proc(void) {
 	
 	for (int i = 0; i < MAX_PRIO; i++) {
         if (slot_left == 0 || empty(&mlq_ready_queue[curr_prio])) {
-            slot_left = MAX_PRIO - curr_prio;
             curr_prio = (curr_prio + 1) % MAX_PRIO;
+            slot_left = MAX_PRIO - curr_prio;
         }
         else {
 		    proc = dequeue(&mlq_ready_queue[curr_prio]);

@@ -116,7 +116,14 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   caller->mm->symrgtbl[rgid].rg_end = old_sbrk + size;
 
   *alloc_addr = old_sbrk;
-// printf("__alloc OK\n");
+
+  // Add remaining region to free list
+  if (old_sbrk + size < cur_vma->vm_end) {
+    struct vm_rg_struct *rgnode = malloc(sizeof(struct vm_rg_struct));
+    rgnode->rg_start = old_sbrk + size;
+    rgnode->rg_end = cur_vma->vm_end;
+    enlist_vm_freerg_list(caller->mm, rgnode);
+  }
   
   pthread_mutex_unlock(&mutex);
   return 0;
@@ -161,7 +168,7 @@ int pgalloc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   int addr;
 
   printf("alloc %d BYTES at register %d\n", size, reg_index);
-print_pgtbl(proc, 0, -1);
+
   /* By default using vmaid = 0 */
   return __alloc(proc, 0, reg_index, size, &addr);
 }
@@ -188,7 +195,6 @@ int pgfree_data(struct pcb_t *proc, uint32_t reg_index)
  */
 int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
 {
-  // printf("pg_getpage called\n");
   uint32_t pte = mm->pgd[pgn];
   if (!PAGING_PAGE_PRESENT(pte)) // A frame has not been assigned for this page
   {
@@ -255,7 +261,7 @@ int pg_getval(struct mm_struct *mm, int addr, BYTE *data, struct pcb_t *caller)
   int pgn = PAGING_PGN(addr);
   int off = PAGING_OFFST(addr);
   int fpn;
-// printf("%d - %d\n", pgn, off);
+
   /* Get the page to MEMRAM, swap from MEMSWAP if needed */
   if(pg_getpage(mm, pgn, &fpn, caller) != 0) 
     return -1; /* invalid page access */
@@ -278,7 +284,7 @@ int pg_setval(struct mm_struct *mm, int addr, BYTE value, struct pcb_t *caller)
   int pgn = PAGING_PGN(addr);
   int off = PAGING_OFFST(addr);
   int fpn;
-// printf("%d - %d\n", pgn, off);
+
   /* Get the page to MEMRAM, swap from MEMSWAP if needed */
   if(pg_getpage(mm, pgn, &fpn, caller) != 0) 
     return -1; /* invalid page access */
