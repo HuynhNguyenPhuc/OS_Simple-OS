@@ -85,20 +85,28 @@ int vmap_page_range(struct pcb_t *caller, // process call
            struct framephy_struct *frames,// list of the mapped frames
               struct vm_rg_struct *ret_rg)// return mapped region, the real mapped fp
 {                                         // no guarantee all given pages are mapped
-  //uint32_t * pte = malloc(sizeof(uint32_t));
+  // uint32_t * pte = malloc(sizeof(uint32_t));
   struct framephy_struct *fpit = malloc(sizeof(struct framephy_struct));
-  //int  fpn;
+  // int  fpn;
   int pgit = 0;
-  int pgn = PAGING_PGN(addr);
+  int pgn = PAGING_PGN(addr);  
 
   ret_rg->rg_end = ret_rg->rg_start = addr; // at least the very first space is usable
 
+  fpit->fpn = PAGING_FPN(addr);
   fpit->fp_next = frames;
+  frames = fpit;
 
   /* TODO map range of frame to address space 
    *      [addr to addr + pgnum*PAGING_PAGESZ
    *      in page table caller->mm->pgd[]
    */
+  
+  for (pgit = 0; pgit < pgnum; pgit++){
+    int currAddr = addr + pgit*PAGING_PAGESZ;
+    caller->mm->pgd[PAGING_PGN(currAddr)] = PAGING_FPN(currAddr);
+  }
+  ret_rg->rg_end = pgit; 
 
    /* Tracking for later page replacement activities (if needed)
     * Enqueue new usage page */
@@ -118,15 +126,23 @@ int vmap_page_range(struct pcb_t *caller, // process call
 int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struct** frm_lst)
 {
   int pgit, fpn;
-  //struct framephy_struct *newfp_str;
-
+  struct framephy_struct *newfp_str;
+ 
   for(pgit = 0; pgit < req_pgnum; pgit++)
   {
     if(MEMPHY_get_freefp(caller->mram, &fpn) == 0)
-   {
-     
-   } else {  // ERROR CODE of obtaining somes but not enough frames
-   } 
+    {
+      newfp_str = malloc(sizeof(struct framephy_struct));
+      newfp_str->fpn = fpn;
+      newfp_str->owner = caller->mm;
+      frm_lst[pgit] = newfp_str; 
+    } else {  // ERROR CODE of obtaining somes but not enough frames
+      for (int i = 0; i<pgit; i++){
+        free(frm_lst[i]);
+        frm_lst[i] = NULL;
+      }
+      return -1;
+    } 
  }
 
   return 0;
