@@ -96,16 +96,33 @@ int vmap_page_range(struct pcb_t *caller,           // process call
 
   ret_rg->rg_end = ret_rg->rg_start = addr; // at least the very first space is usable
 
-  fpit->fp_next = frames;
+  // fpit->fp_next = frames;
 
   /* TODO map range of frame to address space
    *      [addr to addr + pgnum*PAGING_PAGESZ
    *      in page table caller->mm->pgd[]
    */
-
+  fpit = frames;
+  for (pgit = 0; pgit < pgnum; pgit++)
+  {
+    // Mapping
+    pgn = PAGING_PGN((addr + pgit * PAGING_PAGESZ));
+    uint32_t *pte = &caller->mm->pgd[pgn];
+    pte_set_fpn(pte, fpit->fpn);
+    // Delete
+    struct framephy_struct *tmp = fpit;
+    fpit = fpit->fp_next;
+    free(tmp);
+  }
+  // List the pages to pgn list
+  for (pgit = pgnum - 1; pgit >= 0; pgit--)
+  {
+    pgn = PAGING_PGN((addr + pgit * PAGING_PAGESZ));
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
+  }
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
-  enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
+  // enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
 
   return 0;
 }
@@ -120,16 +137,29 @@ int vmap_page_range(struct pcb_t *caller,           // process call
 int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struct **frm_lst)
 {
   int pgit, fpn;
-  // struct framephy_struct *newfp_str;
 
   for (pgit = 0; pgit < req_pgnum; pgit++)
   {
-    if (MEMPHY_get_freefp(caller->mram, &fpn) == 0)
-    {
-    }
-    else
+    struct framephy_struct *new_fp = malloc(sizeof(struct framephy_struct));
+    if (MEMPHY_get_freefp(caller->mram, &fpn) != 0)
     { // ERROR CODE of obtaining somes but not enough frames
+      // Find a victim page
+      int vicpgn;
+      find_victim_page(caller->mm, &vicpgn);
+      uint32_t vic_pte = caller->mm->pgd[vicpgn];
+      int vicfpn = PAGING_FPN(vic_pte);
+      // Find a free frame in mswp
+      int swpfpn;
+      MEMPHY_get_freefp(caller->active_mswp, &swpfpn);
+      // Copy content from mram to mswp
+      __swap_cp_page(caller->mram, vicfpn, caller->active_mswp, swpfpn);
+      pte_set_swap(&caller->mm->pgd[vicpgn], 0, swpfpn);
+      // Return this victim frame to the free frame list
+      fpn = vicfpn;
     }
+    new_fp->fpn = fpn;
+    new_fp->fp_next = *frm_lst;
+    *frm_lst = new_fp;
   }
 
   return 0;
