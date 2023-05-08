@@ -165,7 +165,7 @@ int MEMPHY_dump(struct memphy_struct * mp)
     for (int i = 0; i < mp->maxsz; i++)
     if (mp->storage[i] != 0)
       printf("Index %d: %d\n", i, mp->storage[i]);
-    printf("-----\n");
+    printf("-----End dump\n");
 
     return 0;
 }

@@ -167,8 +167,6 @@ int pgalloc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
 {
   int addr;
 
-  printf("alloc %d BYTES at register %d\n", size, reg_index);
-
   /* By default using vmaid = 0 */
   return __alloc(proc, 0, reg_index, size, &addr);
 }
@@ -181,8 +179,6 @@ int pgalloc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
 
 int pgfree_data(struct pcb_t *proc, uint32_t reg_index)
 {
-  printf("free memory at register %d\n", reg_index);
-
   return __free(proc, 0, reg_index);
 }
 
