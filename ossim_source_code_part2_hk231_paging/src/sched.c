@@ -27,7 +27,7 @@ int queue_empty(void) {
 
 void init_scheduler(void) {
 #ifdef MLQ_SCHED
-    int i ;
+    int i;
 
 	for (i = 0; i < MAX_PRIO; i ++)
 		mlq_ready_queue[i].size = 0;
@@ -96,12 +96,13 @@ struct pcb_t * get_proc(void) {
 	/*TODO: get a process from [ready_queue].
 	 * Remember to use lock to protect the queue.
 	 * */
+	proc = dequeue(&ready_queue);
 	return proc;
 }
 
 void put_proc(struct pcb_t * proc) {
 	pthread_mutex_lock(&queue_lock);
-	enqueue(&run_queue, proc);
+	enqueue(&ready_queue, proc);
 	pthread_mutex_unlock(&queue_lock);
 }
 
