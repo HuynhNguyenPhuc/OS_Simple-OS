@@ -93,7 +93,7 @@
 #define OVERLAP(x1,x2,y1,y2) (((y2-x1)*(x2-y1)>=0)?1:0)
 
 // Mutual exclusion for synchronization
-extern pthread_mutex_t mutex;
+extern pthread_mutex_t mem_lock;
 
 /* VM region prototypes */
 struct vm_rg_struct * init_vm_rg(int rg_start, int rg_endi);
