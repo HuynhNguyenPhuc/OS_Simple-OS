@@ -2,6 +2,7 @@
 
 #include "bitops.h"
 #include "common.h"
+#include <pthread.h>
 
 /* CPU Bus definition */
 #define PAGING_CPU_BUS_WIDTH 22 /* 22bit bus - MAX SPACE 4MB */
@@ -11,7 +12,7 @@
 
 #define PAGING_MEMSWPSZ BIT(14) /* 16MB */
 #define PAGING_SWPFPN_OFFSET 5  
-#define PAGING_MAX_PGN  (DIV_ROUND_UP(PAGING_CPU_BUS_WIDTH,PAGING_PAGESZ))
+#define PAGING_MAX_PGN  (DIV_ROUND_UP(BIT(PAGING_CPU_BUS_WIDTH),PAGING_PAGESZ))
 
 #define PAGING_SBRK_INIT_SZ PAGING_PAGESZ
 /* PTE BIT */
@@ -90,6 +91,9 @@
 /* Memory range operator */
 #define INCLUDE(x1,x2,y1,y2) (((y1-x1)*(x2-y2)>=0)?1:0)
 #define OVERLAP(x1,x2,y1,y2) (((y2-x1)*(x2-y1)>=0)?1:0)
+
+// Mutual exclusion for synchronization
+extern pthread_mutex_t mem_lock;
 
 /* VM region prototypes */
 struct vm_rg_struct * init_vm_rg(int rg_start, int rg_endi);
